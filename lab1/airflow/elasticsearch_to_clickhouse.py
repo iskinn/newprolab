@@ -1,4 +1,3 @@
-from datetime import datetime, timedelta, tzinfo
 import elasticsearch
 import csv, json
 import subprocess
@@ -77,10 +76,18 @@ def dag_task(ds, **kwargs):
     # extract batch from elasticserach
     extract_data_from_es(date_now, date_pass)
 
-    #import merged file into Click House
-    subprocess.check_call('cat  /home/result.csv | clickhouse-client  --port 9001 --database=default --query="INSERT INTO anton_guzenko  (`head -n1 /home/result.csv`) FORMAT CSVWithNames"', shell=True)
+t1 = PythonOperator(
+    task_id='from_elasticsearch_to_csv', 
+    python_callable=dag_task, 
+    provide_context=True, 
+    dag=dag,
+)
 
+t2 = BashOperator(
+    task_id='from_csv_to_clickhouse',
+    depends_on_past=False,
+    bash_command='cat  /home/result.csv | clickhouse-client  --port 9001 --database=default --query="INSERT INTO anton_guzenko  (`head -n1 /home/result.csv`) FORMAT CSVWithNames"',
+    dag=dag,
+)
 
-
-dag_operator = PythonOperator(
-    task_id='from_elasticsearch_to_clickhouse', python_callable=dag_task, provide_context=True, dag=dag)
+t1 >> t2
